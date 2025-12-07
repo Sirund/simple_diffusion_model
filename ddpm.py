@@ -131,7 +131,7 @@ def launch():
     # Menambahkan argumen agar bisa diubah lewat command line
     parser.add_argument('--run_name', type=str, default="DDPM_Uncondtional")
     parser.add_argument('--epochs', type=int, default=500)
-    parser.add_argument('--batch_size', type=int, default=32) # Batch size aman untuk T4
+    parser.add_argument('--batch_size', type=int, default=16) # Batch size aman untuk T4
     parser.add_argument('--image_size', type=int, default=64)
     # Default path diarahkan ke input, tapi user HARUS mengubahnya lewat argumen jika struktur salah
     parser.add_argument('--dataset_path', type=str, default=r"/kaggle/input/") 
