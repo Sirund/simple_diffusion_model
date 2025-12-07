@@ -78,6 +78,9 @@ def train(args):
     if torch.cuda.device_count() > 1:
         print(f"🚀 Detected {torch.cuda.device_count()} GPUs! Activating DataParallel...")
         model = nn.DataParallel(model)
+
+    os.makedirs(os.path.join("models", args.run_name), exist_ok=True)
+    os.makedirs(os.path.join("results", args.run_name), exist_ok=True)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     mse = nn.MSELoss()
