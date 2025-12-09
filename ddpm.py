@@ -70,19 +70,37 @@ def train(args):
     setup_logging(args.run_name)
     device = args.device
     dataloader = get_data(args)
-    
-    # Inisialisasi Model
-    model = UNet().to(device)
-    
-    # --- MODIFIKASI 1: MULTI-GPU SUPPORT ---
-    if torch.cuda.device_count() > 1:
-        print(f"🚀 Detected {torch.cuda.device_count()} GPUs! Activating DataParallel...")
-        model = nn.DataParallel(model)
 
     os.makedirs(os.path.join("models", args.run_name), exist_ok=True)
     os.makedirs(os.path.join("results", args.run_name), exist_ok=True)
     
+    # Inisialisasi Model
+    model = UNet().to(device)    
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+    start_epoch = 0
+
+    if args.resume_path is not None:
+        if os.path.exists(args.resume_path):
+            print(f"🔄 Memuat checkpoint lengkap dari: {args.resume_path}")
+            checkpoint = torch.load(args.resume_path, map_location=device)
+            
+            # 1. Load Model
+            model.load_state_dict(checkpoint['model_state_dict'])
+            
+            # 2. Load Optimizer (PENTING: Load ini SEBELUM model masuk DataParallel)
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            
+            # 3. Load Epoch Terakhir
+            start_epoch = checkpoint['epoch'] + 1
+            print(f"✅ Resume sukses! Melanjutkan dari epoch {start_epoch}")
+        else:
+            print("⚠️ File checkpoint tidak ditemukan, mulai dari nol.")
+
+    # --- MODIFIKASI 1: MULTI-GPU SUPPORT ---
+    if torch.cuda.device_count() > 1:
+        print(f"🚀 Detected {torch.cuda.device_count()} GPUs! Activating DataParallel...")
+        model = nn.DataParallel(model)
+    
     mse = nn.MSELoss()
     diffusion = Diffusion(img_size=args.image_size, device=device)
     logger = SummaryWriter(os.path.join("runs", args.run_name))
@@ -91,7 +109,7 @@ def train(args):
     # --- MODIFIKASI 2: MIXED PRECISION SCALER ---
     scaler = GradScaler()
 
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         logging.info(f"Starting epoch {epoch}:")
         pbar = tqdm(dataloader)
         
@@ -127,6 +145,16 @@ def train(args):
                 torch.save(model.module.state_dict(), save_path)
             else:
                 torch.save(model.state_dict(), save_path)
+                
+        if epoch % 2 == 0:
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss.item(), # Opsional, untuk log
+            }
+            torch.save(checkpoint, os.path.join("models", args.run_name, f"ckpt.pt"))
+            print(f"💾 Checkpoint saved at epoch {epoch}")
 
 def launch():
     import argparse
@@ -140,6 +168,7 @@ def launch():
     parser.add_argument('--dataset_path', type=str, default=r"/kaggle/input/") 
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--lr', type=float, default=3e-4)
+    parser.add_argument('--resume_path', type=str, default=None, help="Path ke file ckpt.pt lama")
     
     args = parser.parse_args()
     train(args)
