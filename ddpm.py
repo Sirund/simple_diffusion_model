@@ -146,7 +146,7 @@ def train(args):
             else:
                 torch.save(model.state_dict(), save_path)
                 
-        if epoch % 2 == 0:
+        if epoch % 100 == 0:
             checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
